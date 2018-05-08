@@ -3,6 +3,7 @@ package com.maoshen.component;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -14,19 +15,24 @@ import org.apache.commons.lang3.StringUtils;
 
 import com.alibaba.fastjson.JSONObject;
 import com.maoshen.component.constant.JdxControllerConstant;
-import com.maoshen.component.controller.JdxController;
-import com.maoshen.component.controller.JdxControllerUrlMapper;
+import com.maoshen.component.controller.annotation.JdxController;
+import com.maoshen.component.controller.annotation.JdxControllerJson;
+import com.maoshen.component.controller.annotation.JdxControllerMethodParam;
+import com.maoshen.component.controller.annotation.JdxControllerUrlMapper;
 import com.maoshen.component.controller.mapper.ControllerAction;
 import com.maoshen.component.controller.mapper.ControllerActionMethod;
+import com.maoshen.component.controller.mapper.ControllerActionMethodParam;
 import com.maoshen.component.controller.mapper.JdxMapper;
 
 public class JdxComponent {
 	private static final JdxComponent jdxComponent = new JdxComponent();
+	//本项目扫描路径
+	private String jdxControllerPackagePath = null;
 	
 	//CONTROLLER真正保存的映射URL和实体类
 	private JdxMapper jdxControllerMapper = new JdxMapper();
 
-	private ServletContext servletContext;
+	protected ServletContext servletContext;
 
 	// 第一轮CONTROLLER扫描存储
 	private List<ControllerAction> controllerActionList = new ArrayList<ControllerAction>();
@@ -40,7 +46,13 @@ public class JdxComponent {
 	}
 
 	public void init(FilterConfig filterConfig) throws Exception {
+		String configClass = filterConfig.getInitParameter("configClass");
+		if(StringUtils.isBlank(configClass)) {
+			throw new Exception("configClass valus is not allow null");
+		}
+		jdxControllerPackagePath = configClass;
 		servletContext = filterConfig.getServletContext();
+		
 		// 注入 controller
 		injectController();
 		// 注入controller里面的url映射
@@ -48,7 +60,7 @@ public class JdxComponent {
 	}
 
 	/**
-	 * controller 里面的URL映射
+	 * controller 里面的方法的URL映射
 	 */
 	private void injectControllerUrlMapping() {
 		if (controllerActionList != null && controllerActionList.isEmpty() == false) {
@@ -65,6 +77,27 @@ public class JdxComponent {
 							ControllerActionMethod controllerActionMethod = new ControllerActionMethod();
 							controllerActionMethod.setActionObj(controllerAction.getActionObj());
 							controllerActionMethod.setMethodName(method.getName());
+							Parameter[] paramArr = method.getParameters();
+							
+							int i = 0;
+							//每个方法属性信息
+							ControllerActionMethodParam[] controllerActionMethodParamArr = new ControllerActionMethodParam[paramArr.length];
+							for(Parameter p :paramArr) {
+								ControllerActionMethodParam controllerActionMethodParam = new ControllerActionMethodParam();
+								controllerActionMethodParam.setParam(p.getType());
+								//强制参数名
+								JdxControllerMethodParam jdxControllerMethodParam = p.getAnnotation(JdxControllerMethodParam.class);
+								controllerActionMethodParam.setJdxControllerMethodParam(jdxControllerMethodParam);
+								//是否为json
+								JdxControllerJson jdxControllerJson = p.getAnnotation(JdxControllerJson.class);
+								controllerActionMethodParam.setJdxControllerJson(jdxControllerJson);
+								
+								controllerActionMethodParamArr[i] = controllerActionMethodParam;
+								i++;
+							}
+							controllerActionMethod.setControllerActionMethodParam(controllerActionMethodParamArr);
+							
+							
 							jdxControllerMapper.getMap().put(controllerAction.getUrlMapperStr() + value,
 									controllerActionMethod);
 						}
@@ -77,13 +110,13 @@ public class JdxComponent {
 	}
 
 	/**
-	 * controller
+	 * controller对象注入
 	 * 
 	 * @throws Exception
 	 */
 	private void injectController() throws Exception {
 		String classpath = JdxComponent.class.getResource("/").getPath();
-		String pa = JdxControllerConstant.JDX_CONTROLLER_PACKAGE_PATH.replace(JdxControllerConstant.PACKAGE_SEPARATOR,
+		String pa = jdxControllerPackagePath.replace(JdxControllerConstant.PACKAGE_SEPARATOR,
 				JdxControllerConstant.PATH_SEPARATOR);
 		String searchPath = classpath + pa;
 		Set<String> allClassSet = JdxMapper.doPath(new File(searchPath));
@@ -117,9 +150,7 @@ public class JdxComponent {
 								e.printStackTrace();
 							}
 						}
-					} else {
-						System.out.println(cls.getName() + " is a abstract or interface");
-					}
+					} 
 				} catch (ClassNotFoundException e) {
 					e.printStackTrace();
 				}

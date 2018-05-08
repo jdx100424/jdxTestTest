@@ -6,7 +6,9 @@ import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 
 /**
- * ControllerAction
+ * @JdxController
+ * ControllerAction,最外面的Controller类信息，
+ * 记录此ControllerAction对象及头顶@JdxController设置的URL
  * @author dell
  *
  */

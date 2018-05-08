@@ -7,10 +7,10 @@
  */
 package com.maoshen.component.dto;
 
-
+import com.maoshen.filter.code.ErrorCode;
 
 public class ResponseResultDto<T> {
-    private int    code    = 200;
+    private int    code    = ErrorCode.HTTP_OK.getCode();
 
     private String message = "";
 
@@ -24,12 +24,12 @@ public class ResponseResultDto<T> {
 
     }
     
-    public ResponseResultDto(BaseErrorCode errorCode) {
+    public ResponseResultDto(ErrorCode errorCode) {
         code = errorCode.getCode();
         message = errorCode.getMsg();
     }
     
-    public ResponseResultDto(T t, BaseErrorCode errorCode) {
+    public ResponseResultDto(T t, ErrorCode errorCode) {
         code = errorCode.getCode();
         message = errorCode.getMsg();
         data = t;

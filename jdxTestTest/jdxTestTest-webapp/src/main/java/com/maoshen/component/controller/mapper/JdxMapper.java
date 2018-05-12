@@ -11,10 +11,10 @@ import java.util.Set;
  * @author dell
  *
  */
-public class JdxMapper {
-	private Map<String,ControllerActionMethod> map = new HashMap<String,ControllerActionMethod>();
+public class JdxMapper<T> {
+	private Map<String,T> map = new HashMap<String,T>();
 	
-	public Map<String,ControllerActionMethod> getMap(){
+	public Map<String,T> getMap(){
 		return map;
 	}
 	

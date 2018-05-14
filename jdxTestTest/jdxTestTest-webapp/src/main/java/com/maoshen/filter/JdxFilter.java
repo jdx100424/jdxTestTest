@@ -22,15 +22,20 @@ import com.maoshen.filter.code.ErrorCode;
 import com.maoshen.component.controller.json.JsonpUtil;
 import com.maoshen.component.controller.mapper.ControllerActionMethod;
 import com.maoshen.component.controller.mapper.ControllerActionMethodParam;
+import com.maoshen.component.dao.sql.SqlInfo;
 
 public class JdxFilter implements Filter {
-	private static final String SERVLET_REQUEST_NAME = "javax.servlet.ServletRequest";
-	private static final String SERVLET_RESPONSE_NAME = "javax.servlet.ServletResponse";
 	private static final String APPLICATION_JSON = "application/json";
 
 	public void init(FilterConfig filterConfig) throws ServletException {
 		// 注入controller
 		try {
+			// sql配置读入
+			SqlInfo sqlInfo = SqlInfo.getDefaultSqlInfo();
+			sqlInfo.setInitProperties(filterConfig.getInitParameter("jdbcUrl"), filterConfig.getInitParameter("user"),
+					filterConfig.getInitParameter("password"), filterConfig.getInitParameter("driver"));
+			
+			//controller,service,dao注入
 			JdxComponent.getJdxComponent().init(filterConfig);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -95,6 +100,7 @@ public class JdxFilter implements Filter {
 
 	/**
 	 * 有参数方法反射调用
+	 * 
 	 * @param httpServletRequest
 	 * @param httpServletResponse
 	 * @param body
@@ -111,9 +117,9 @@ public class JdxFilter implements Filter {
 			ControllerActionMethod controllerActionMethod, boolean isJson, ControllerActionMethodParam[] classParam)
 			throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 		Object resultObject;
-		//调用方法传入的参数值
+		// 调用方法传入的参数值
 		Object[] ObjectArr = new Object[classParam.length];
-		//调用方法本身设置的参数信息
+		// 调用方法本身设置的参数信息
 		Class<?>[] classObject = new Class[classParam.length];
 
 		int i = 0;
@@ -122,11 +128,11 @@ public class JdxFilter implements Filter {
 			// 查询是否为request or response
 			boolean isRequestOrResponse = false;
 			for (Class<?> inter : cls.getParam().getInterfaces()) {
-				if (SERVLET_REQUEST_NAME.equals(inter.getName())) {
+				if (javax.servlet.ServletRequest.class.getName().equals(inter.getName())) {
 					ObjectArr[i] = httpServletRequest;
 					isRequestOrResponse = true;
 					break;
-				} else if (SERVLET_RESPONSE_NAME.equals(inter.getName())) {
+				} else if (javax.servlet.ServletResponse.class.getName().equals(inter.getName())) {
 					ObjectArr[i] = httpServletResponse;
 					isRequestOrResponse = true;
 					break;
@@ -169,6 +175,7 @@ public class JdxFilter implements Filter {
 
 	/**
 	 * 无参数方法反射调用
+	 * 
 	 * @param controllerActionMethod
 	 * @return
 	 * @throws IllegalAccessException
@@ -178,10 +185,9 @@ public class JdxFilter implements Filter {
 	private Object doNoParam(ControllerActionMethod controllerActionMethod)
 			throws IllegalAccessException, InvocationTargetException, NoSuchMethodException {
 		Object resultObject;
-		//无参数
+		// 无参数
 		resultObject = controllerActionMethod.getActionObj().getClass()
-				.getMethod(controllerActionMethod.getMethodName())
-				.invoke(controllerActionMethod.getActionObj());
+				.getMethod(controllerActionMethod.getMethodName()).invoke(controllerActionMethod.getActionObj());
 		return resultObject;
 	}
 

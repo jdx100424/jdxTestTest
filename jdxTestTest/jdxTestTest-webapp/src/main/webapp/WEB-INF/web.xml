@@ -10,6 +10,23 @@
 			<param-name>configClass</param-name>
 			<param-value>com.maoshen</param-value>
 		</init-param>
+
+		<init-param>
+			<param-name>jdbcUrl</param-name>
+			<param-value>jdbc:mysql://192.168.196.132:3306/jdxTest</param-value>
+		</init-param>
+		<init-param>
+			<param-name>user</param-name>
+			<param-value>root</param-value>
+		</init-param>
+		<init-param>
+			<param-name>password</param-name>
+			<param-value>jdxjdx100424</param-value>
+		</init-param>
+		<init-param>
+			<param-name>driver</param-name>
+			<param-value>com.mysql.jdbc.Driver</param-value>
+		</init-param>
 	</filter>
 
 	<filter-mapping>

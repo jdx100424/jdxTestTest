@@ -1,7 +1,6 @@
 package com.maoshen.component;
 
 import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -34,6 +33,10 @@ import com.maoshen.component.controller.mapper.ControllerAction;
 import com.maoshen.component.controller.mapper.ControllerActionMethod;
 import com.maoshen.component.controller.mapper.ControllerActionMethodParam;
 import com.maoshen.component.controller.mapper.JdxMapper;
+import com.maoshen.component.dao.annotation.JdxDao;
+import com.maoshen.component.dao.annotation.JdxDaoInject;
+import com.maoshen.component.dao.mapper.DaoAction;
+import com.maoshen.component.dao.proxy.DaoProxyCGLib;
 import com.maoshen.component.service.annotation.JdxService;
 import com.maoshen.component.service.annotation.JdxServiceInject;
 import com.maoshen.component.service.mapper.ServiceAction;
@@ -50,8 +53,10 @@ public class JdxComponent {
 
 	// 第一轮CONTROLLER扫描存储
 	private List<ControllerAction> controllerActionList = new ArrayList<ControllerAction>();
-	// 第二轮service扫描存储
+	// 第1轮service扫描存储
 	private Map<String,ServiceAction> serviceActionMap = new HashMap<String,ServiceAction>();
+	// 第1轮dao扫描存储
+	private Map<String,DaoAction> daoActionMap = new HashMap<String,DaoAction>();
 
 	
 	public JdxMapper<ControllerActionMethod> getJdxControllerMapper() {
@@ -76,7 +81,13 @@ public class JdxComponent {
 		// 注入 service
 		injectService();
 		
-		// 每个service里面的子service
+		// 注入 dao
+		injectDao();	
+		
+		// dao代理实现类注入
+		injectDaoProxy();	
+		
+		// 每个service里面的子service和dao
 		injectServiceField();
 		
 		// 注入controller里面的url映射
@@ -84,6 +95,85 @@ public class JdxComponent {
 		
 		// 注入controller里面的service
 		injectControllerinjectServiceField();
+	}
+
+	/**
+	 * dao代理实现类注入
+	 */
+	private void injectDaoProxy() {
+		if(daoActionMap!=null && daoActionMap.isEmpty()==false) {
+			Iterator<Entry<String, DaoAction>> it = daoActionMap.entrySet().iterator();
+			while(it.hasNext()) {
+				Entry<String, DaoAction> e = it.next();
+				Object proxyActionObj = new DaoProxyCGLib().createProxy(e.getValue().getCls());
+				e.getValue().setProxyActionObj(proxyActionObj);
+			}
+		}
+		System.out.println("第2轮dao扫描存储:"+JSONObject.toJSONString(daoActionMap));	
+	}
+
+	/**
+	 * 注入 dao
+	 */
+	private void injectDao()  throws Exception{
+		//通过当前线程得到类加载器从而得到URL的枚举
+        Enumeration<URL> urlEnumeration = Thread.currentThread().getContextClassLoader().getResources(jdxControllerPackagePath.replace(".", "/"));
+        while (urlEnumeration.hasMoreElements()) {
+            URL url = urlEnumeration.nextElement();//得到的结果大概是：jar:file:/C:/Users/ibm/.m2/repository/junit/junit/4.12/junit-4.12.jar!/org/junit
+            String protocol = url.getProtocol();//大概是jar
+            if ("jar".equalsIgnoreCase(protocol)) {
+                //转换为JarURLConnection
+                JarURLConnection connection = (JarURLConnection) url.openConnection();
+                if (connection != null) {
+                    JarFile jarFile = connection.getJarFile();
+                    if (jarFile != null) {
+                        //得到该jar文件下面的类实体
+                        Enumeration<JarEntry> jarEntryEnumeration = jarFile.entries();
+                        while (jarEntryEnumeration.hasMoreElements()) {
+                            /*entry的结果大概是这样：
+                                    org/
+                                    org/junit/
+                                    org/junit/rules/
+                                    org/junit/runners/*/
+                            JarEntry entry = jarEntryEnumeration.nextElement();
+                            String jarEntryName = entry.getName();
+                            //这里我们需要过滤不是class文件和不在basePack包名下的类
+                            if (jarEntryName.contains(".class") && jarEntryName.replaceAll("/",".").startsWith(jdxControllerPackagePath)) {
+                            	try {
+	                            	String className = jarEntryName.substring(0, jarEntryName.lastIndexOf(".")).replace("/", ".");
+	                                Class<?> cls = Class.forName(className);
+	                                // dao是接口类型才允许扫描
+	            					if (cls.isInterface() == true) {
+	            						JdxDao jdxDao = cls.getAnnotation(JdxDao.class);
+	            						if (jdxDao != null) {
+	            							String value = jdxDao.value();
+	            							if (StringUtils.isBlank(value)) {
+	            								String arr[] = cls.getName().split("\\.");
+	            								if (arr != null && arr.length > 0) {
+	            									String s = arr[arr.length - 1];
+	            									value = s.substring(0, 1).toLowerCase() + s.substring(1);
+	            								}
+	            							}
+	            							try {
+	            								//dao第一轮注入,还没有代理
+	            								DaoAction daoAction = new DaoAction();
+	            								daoAction.setCls(cls);
+	            								daoActionMap.put(value.toString(), daoAction);
+	            							} catch (Exception e) {
+	            								e.printStackTrace();
+	            							}
+	            						}
+	            					}
+                            	} catch (ClassNotFoundException e) {
+                					e.printStackTrace();
+                				}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+		System.out.println("第1轮dao扫描存储:"+JSONObject.toJSONString(daoActionMap));	
 	}
 
 	/**
@@ -128,11 +218,20 @@ public class JdxComponent {
         		if(serviceAction.getFieldArr()!=null && serviceAction.getFieldArr().length>0) {
         			for(Field f:serviceAction.getFieldArr()) {
         				JdxServiceInject jdxServiceInject = f.getAnnotation(JdxServiceInject.class);
+        				JdxDaoInject jdxDaoInject = f.getAnnotation(JdxDaoInject.class);
+        				//常规service注入
         				if(jdxServiceInject!=null) {
         					ServiceAction sa = serviceActionMap.get(jdxServiceInject.value());
         					if(sa!=null) {
         						Field oriField = obj.getClass().getField(f.getName());
         						oriField.set(obj, sa.getActionObj());
+        					}
+        				}else if(jdxDaoInject!=null) {
+        					//DAO注入
+        					DaoAction da = daoActionMap.get(jdxDaoInject.value());
+        					if(da!=null) {
+        						Field oriField = obj.getClass().getField(f.getName());
+        						oriField.set(obj, da.getProxyActionObj());
         					}
         				}
         			}
